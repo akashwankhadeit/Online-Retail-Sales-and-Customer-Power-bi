@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>European Retail Sales Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1e2333;
+    --border: rgba(255,255,255,0.07);
+    --accent: #f5a623;
+    --accent2: #4f8ef7;
+    --accent3: #3ecf8e;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --danger: #ef4444;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+  .pbi-logo {
+    background: #f5a623;
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  .topbar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .chip {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--surface2);
+  }
+  .chip.live { border-color: rgba(62,207,142,0.4); color: var(--accent3); }
+  .chip.live::before { content: '●  '; font-size: 7px; }
+
+  /* ── FILTER BAR ── */
+  .filterbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: var(--muted); margin-right: 4px; }
+  .filter-btn {
+    font-size: 11px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .filter-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .filter-btn.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  .filter-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .filter-info { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  /* ── MAIN LAYOUT ── */
+  .main { padding: 20px 28px; }
+
+  /* ── KPI CARDS ── */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    border-radius: 10px 10px 0 0;
+  }
+  .kpi-card.k1::before { background: var(--accent2); }
+  .kpi-card.k2::before { background: var(--accent3); }
+  .kpi-card.k3::before { background: var(--accent); }
+  .kpi-card.k4::before { background: #c084fc; }
+  .kpi-card:hover { border-color: rgba(255,255,255,0.15); }
+  .kpi-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; font-weight: 500; }
+  .kpi-val { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .kpi-trend { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; margin-top: 4px; }
+  .kpi-trend.up { color: var(--accent3); }
+  .kpi-trend.warn { color: var(--accent); }
+
+  /* ── CHART GRID ── */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .chart-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+  }
+  .panel-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .legend-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .leg-sq { width: 9px; height: 9px; border-radius: 2px; }
+
+  /* ── MAP PANEL ── */
+  .map-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .map-wrap {
+    position: relative;
+    background: #131929;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 280px;
+    margin-top: 10px;
+  }
+  .map-svg { width: 100%; height: 100%; }
+  .map-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text);
+    pointer-events: none;
+    display: none;
+    z-index: 10;
+  }
+  .map-legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .map-legend-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, #1a2d4a, #4f8ef7, #f5a623);
+  }
+
+  /* ── COUNTRY TABLE ── */
+  .country-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .country-table th {
+    text-align: left;
+    padding: 6px 8px;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  .country-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .country-table tr:hover td { background: var(--surface2); }
+  .country-flag { font-size: 14px; margin-right: 4px; }
+  .share-bar-bg { background: var(--surface2); border-radius: 2px; height: 5px; margin-top: 3px; }
+  .share-bar-fill { height: 5px; border-radius: 2px; background: var(--accent2); }
+
+  /* ── INSIGHT CARDS ── */
+  .insight-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    border-left: 3px solid transparent;
+  }
+  .insight-card.i1 { border-left-color: var(--accent2); }
+  .insight-card.i2 { border-left-color: var(--accent); }
+  .insight-card.i3 { border-left-color: var(--accent3); }
+  .insight-title { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .insight-desc { font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .insight-badge { font-size: 10px; padding: 2px 8px; border-radius: 8px; display: inline-block; margin-top: 6px; font-weight: 500; }
+
+  /* ── FOOTER ── */
+  .footer {
+    text-align: center;
+    font-size: 10px;
+    color: var(--muted);
+    padding: 16px 28px 24px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .footer a { color: var(--accent2); text-decoration: none; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .kpi-card { animation: fadeUp .4s ease both; }
+  .kpi-card:nth-child(1){ animation-delay:.05s }
+  .kpi-card:nth-child(2){ animation-delay:.1s }
+  .kpi-card:nth-child(3){ animation-delay:.15s }
+  .kpi-card:nth-child(4){ animation-delay:.2s }
+  .panel, .map-panel { animation: fadeUp .5s ease .2s both; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="pbi-logo">PBI</div>
+    <div class="topbar-title">European Retail Sales Analytics</div>
+  </div>
+  <div class="topbar-right">
+    <span class="chip live">Live Report</span>
+    <span class="chip">2026 Data</span>
+    <span class="chip">16 Countries</span>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filterbar">
+  <span class="filter-label">Country:</span>
+  <button class="filter-btn active" onclick="filterData('all',this)">All Countries</button>
+  <button class="filter-btn" onclick="filterData('uk',this)">United Kingdom</button>
+  <button class="filter-btn" onclick="filterData('eu',this)">Europe (ex-UK)</button>
+  <div class="filter-sep"></div>
+  <span class="filter-label">View:</span>
+  <button class="filter-btn active2" onclick="">Quantity</button>
+  <button class="filter-btn" onclick="">Revenue</button>
+  <span class="filter-info" id="filter-info">Showing all 16 countries · 5,176,450 units</span>
+</div>
+
+<div class="main">
+
+  <!-- KPI CARDS -->
+  <div class="kpi-row">
+    <div class="kpi-card k1">
+      <div class="kpi-label">Sum of Unit Price</div>
+      <div class="kpi-val" id="kpi-rev">£2.49M</div>
+      <div class="kpi-sub">Total revenue value</div>
+      <div class="kpi-trend up">↑ Primary metric</div>
+    </div>
+    <div class="kpi-card k2">
+      <div class="kpi-label">Sum of Quantity</div>
+      <div class="kpi-val" id="kpi-qty">5.17M</div>
+      <div class="kpi-sub">Total units sold</div>
+      <div class="kpi-trend up">↑ Pan-European</div>
+    </div>
+    <div class="kpi-card k3">
+      <div class="kpi-label">UK Market Share</div>
+      <div class="kpi-val" id="kpi-uk">92.71%</div>
+      <div class="kpi-sub">Of total quantity</div>
+      <div class="kpi-trend warn">⚠ High dependency</div>
+    </div>
+    <div class="kpi-card k4">
+      <div class="kpi-label">International Share</div>
+      <div class="kpi-val" id="kpi-intl">7.29%</div>
+      <div class="kpi-sub">Growth opportunity</div>
+      <div class="kpi-trend up">↑ 16 markets</div>
+    </div>
+  </div>
+
+  <!-- MAIN CHARTS ROW -->
+  <div class="chart-grid">
+    <!-- Bar chart -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Quantity &amp; Unit Price by Country</span>
+        <span class="panel-tag">Top 8</span>
+      </div>
+      <div class="legend-row">
+        <span class="legend-item"><span class="leg-sq" style="background:#4f8ef7;"></span>Sum of Quantity</span>
+        <span class="legend-item"><span class="leg-sq" style="background:#f5a623;"></span>Sum of UnitPrice</span>
+      </div>
+      <div style="position:relative;height:240px;"><canvas id="barChart"></canvas></div>
+    </div>
+
+    <!-- Donut -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Customer ID vs Quantity</span>
+        <span class="panel-tag">Split</span>
+      </div>
+      <div style="position:relative;height:180px;"><canvas id="donutChart"></canvas></div>
+      <div style="margin-top:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:#4f8ef7;display:inline-block;"></span>Count of CustomerID</span>
+          <span style="font-size:12px;font-weight:500;color:#4f8ef7;">0.41M · 7.29%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;">
+          <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:#1a3a6b;display:inline-block;"></span>Sum of Quantity</span>
+          <span style="font-size:12px;font-weight:500;color:var(--text);">5M · 92.71%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP + TABLE ROW -->
+  <div class="chart-grid">
+    <!-- Europe Map -->
+    <div class="map-panel" style="margin-bottom:0;">
+      <div class="panel-header">
+        <span class="panel-title">Geographic Distribution — Europe</span>
+        <span class="panel-tag">Interactive</span>
+      </div>
+      <div class="map-wrap" id="mapWrap">
+        <svg class="map-svg" viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg" id="euroMap">
+          <!-- simplified europe country bubbles with labels -->
+          <rect width="700" height="400" fill="#0d1520"/>
+          <!-- grid lines -->
+          <g stroke="rgba(255,255,255,0.04)" stroke-width="1">
+            <line x1="0" y1="100" x2="700" y2="100"/>
+            <line x1="0" y1="200" x2="700" y2="200"/>
+            <line x1="0" y1="300" x2="700" y2="300"/>
+            <line x1="175" y1="0" x2="175" y2="400"/>
+            <line x1="350" y1="0" x2="350" y2="400"/>
+            <line x1="525" y1="0" x2="525" y2="400"/>
+          </g>
+          <!-- Country circles sized by quantity -->
+          <!-- UK - huge -->
+          <circle cx="165" cy="130" r="72" fill="rgba(79,142,247,0.25)" stroke="#4f8ef7" stroke-width="1.5" class="map-country" data-country="United Kingdom" data-qty="4,795,440" data-rev="£2,312,681" data-share="92.71%"/>
+          <circle cx="165" cy="130" r="52" fill="rgba(79,142,247,0.15)" stroke="none"/>
+          <text x="165" y="126" text-anchor="middle" fill="#e8eaf0" font-size="11" font-family="Syne,sans-serif" font-weight="700">UK</text>
+          <text x="165" y="141" text-anchor="middle" fill="#4f8ef7" font-size="9" font-family="DM Sans,sans-serif">4.79M units</text>
+
+          <!-- Netherlands -->
+          <circle cx="295" cy="148" r="18" fill="rgba(245,166,35,0.3)" stroke="#f5a623" stroke-width="1.5" class="map-country" data-country="Netherlands" data-qty="200,128" data-rev="£43,210" data-share="3.87%"/>
+          <text x="295" y="152" text-anchor="middle" fill="#f5a623" font-size="8" font-family="Syne,sans-serif" font-weight="600">NL</text>
+
+          <!-- EIRE -->
+          <circle cx="130" cy="168" r="14" fill="rgba(62,207,142,0.3)" stroke="#3ecf8e" stroke-width="1.5" class="map-country" data-country="EIRE" data-qty="142,595" data-rev="£31,480" data-share="2.75%"/>
+          <text x="130" y="172" text-anchor="middle" fill="#3ecf8e" font-size="8" font-family="Syne,sans-serif" font-weight="600">IE</text>
+
+          <!-- Germany -->
+          <circle cx="340" cy="168" r="15" fill="rgba(245,166,35,0.25)" stroke="#f5a623" stroke-width="1.5" class="map-country" data-country="Germany" data-qty="117,448" data-rev="£27,650" data-share="2.27%"/>
+          <text x="340" y="172" text-anchor="middle" fill="#f5a623" font-size="8" font-family="Syne,sans-serif" font-weight="600">DE</text>
+
+          <!-- France -->
+          <circle cx="255" cy="215" r="16" fill="rgba(79,142,247,0.3)" stroke="#4f8ef7" stroke-width="1.5" class="map-country" data-country="France" data-qty="110,395" data-rev="£23,940" data-share="2.13%"/>
+          <text x="255" y="219" text-anchor="middle" fill="#4f8ef7" font-size="8" font-family="Syne,sans-serif" font-weight="600">FR</text>
+
+          <!-- Switzerland -->
+          <circle cx="330" cy="225" r="10" fill="rgba(192,132,252,0.3)" stroke="#c084fc" stroke-width="1.5" class="map-country" data-country="Switzerland" data-qty="30,118" data-rev="£8,310" data-share="0.58%"/>
+          <text x="330" y="229" text-anchor="middle" fill="#c084fc" font-size="7" font-family="Syne,sans-serif" font-weight="600">CH</text>
+
+          <!-- Spain -->
+          <circle cx="200" cy="280" r="12" fill="rgba(245,166,35,0.25)" stroke="#f5a623" stroke-width="1.5" class="map-country" data-country="Spain" data-qty="26,824" data-rev="£7,110" data-share="0.52%"/>
+          <text x="200" y="284" text-anchor="middle" fill="#f5a623" font-size="7" font-family="Syne,sans-serif" font-weight="600">ES</text>
+
+          <!-- Belgium -->
+          <circle cx="295" cy="180" r="11" fill="rgba(62,207,142,0.25)" stroke="#3ecf8e" stroke-width="1.5" class="map-country" data-country="Belgium" data-qty="23,967" data-rev="£6,820" data-share="0.46%"/>
+          <text x="295" y="184" text-anchor="middle" fill="#3ecf8e" font-size="7" font-family="Syne,sans-serif" font-weight="600">BE</text>
+
+          <!-- Portugal -->
+          <circle cx="155" cy="290" r="10" fill="rgba(79,142,247,0.25)" stroke="#4f8ef7" stroke-width="1.5" class="map-country" data-country="Portugal" data-qty="16,180" data-rev="£4,230" data-share="0.31%"/>
+          <text x="155" y="294" text-anchor="middle" fill="#4f8ef7" font-size="7" font-family="Syne,sans-serif" font-weight="600">PT</text>
+
+          <!-- Denmark -->
+          <circle cx="340" cy="100" r="10" fill="rgba(245,166,35,0.25)" stroke="#f5a623" stroke-width="1.5" class="map-country" data-country="Denmark" data-qty="19,019" data-rev="£5,100" data-share="0.37%"/>
+          <text x="340" y="104" text-anchor="middle" fill="#f5a623" font-size="7" font-family="Syne,sans-serif" font-weight="600">DK</text>
+
+          <!-- Italy -->
+          <circle cx="360" cy="255" r="11" fill="rgba(192,132,252,0.25)" stroke="#c084fc" stroke-width="1.5" class="map-country" data-country="Italy" data-qty="7,483" data-rev="£2,140" data-share="0.14%"/>
+          <text x="360" y="259" text-anchor="middle" fill="#c084fc" font-size="7" font-family="Syne,sans-serif" font-weight="600">IT</text>
+
+          <!-- Austria -->
+          <circle cx="390" cy="210" r="9" fill="rgba(62,207,142,0.2)" stroke="#3ecf8e" stroke-width="1.5" class="map-country" data-country="Austria" data-qty="4,827" data-rev="£1,380" data-share="0.09%"/>
+          <text x="390" y="214" text-anchor="middle" fill="#3ecf8e" font-size="7" font-family="Syne,sans-serif" font-weight="600">AT</text>
+
+          <!-- Poland -->
+          <circle cx="430" cy="155" r="9" fill="rgba(245,166,35,0.2)" stroke="#f5a623" stroke-width="1.5" class="map-country" data-country="Poland" data-qty="2,466" data-rev="£780" data-share="0.05%"/>
+          <text x="430" y="159" text-anchor="middle" fill="#f5a623" font-size="7" font-family="Syne,sans-serif" font-weight="600">PL</text>
+
+          <!-- Legend bottom -->
+          <text x="14" y="390" fill="rgba(255,255,255,0.25)" font-size="8" font-family="DM Sans,sans-serif">© Simplified Europe map · Hover countries for details</text>
+        </svg>
+        <div class="map-tooltip" id="mapTooltip"></div>
+      </div>
+      <div class="map-legend">
+        <span>Low</span>
+        <div class="map-legend-bar"></div>
+        <span>High</span>
+        <span style="margin-left:12px;">● Circle size = quantity sold</span>
+      </div>
+    </div>
+
+    <!-- Country Table -->
+    <div class="panel" style="overflow:auto;">
+      <div class="panel-header">
+        <span class="panel-title">Country Breakdown</span>
+        <span class="panel-tag">All regions</span>
+      </div>
+      <table class="country-table">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th>Quantity</th>
+            <th>Share</th>
+          </tr>
+        </thead>
+        <tbody id="countryTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BOTTOM CHARTS -->
+  <div class="chart-grid-3" style="margin-top:14px;">
+    <!-- Horizontal bar -->
+    <div class="panel" style="grid-column:span 2;">
+      <div class="panel-header">
+        <span class="panel-title">Top Countries — Quantity Sold</span>
+        <span class="panel-tag">Ranked</span>
+      </div>
+      <div style="position:relative;height:220px;"><canvas id="hbarChart"></canvas></div>
+    </div>
+
+    <!-- Insights -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Key Insights</span>
+        <span class="panel-tag">Auto</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+        <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid var(--accent2);">
+          <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:3px;">UK dominates at 92.71%</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.5;">Single market dependency is a strategic risk. Diversification needed.</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid var(--accent);">
+          <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:3px;">France &amp; NL = growth targets</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.5;">Already buying — just less. Strong candidates for focused campaigns.</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid var(--accent3);">
+          <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:3px;">Bulk B2B buyers likely</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.5;">Low customer count vs high quantity signals wholesale relationships.</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid #c084fc;">
+          <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:3px;">Eastern Europe untapped</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.5;">Poland, Austria, Czech Rep. on map but minimal sales. Expansion opportunity.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  Built by <strong style="color:var(--text);">[Your Name]</strong> · European Retail Sales Dashboard · Power BI Recreation in HTML/JS ·
+  <a href="https://github.com">GitHub Portfolio</a> · Data: Online Retail Dataset · 2026
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────
+const countries = [
+  { name:'United Kingdom', flag:'🇬🇧', qty:4795440, rev:2312681, share:92.71 },
+  { name:'Netherlands',    flag:'🇳🇱', qty:200128,  rev:43210,   share:3.87  },
+  { name:'EIRE',           flag:'🇮🇪', qty:142595,  rev:31480,   share:2.75  },
+  { name:'Germany',        flag:'🇩🇪', qty:117448,  rev:27650,   share:2.27  },
+  { name:'France',         flag:'🇫🇷', qty:110395,  rev:23940,   share:2.13  },
+  { name:'Switzerland',    flag:'🇨🇭', qty:30118,   rev:8310,    share:0.58  },
+  { name:'Spain',          flag:'🇪🇸', qty:26824,   rev:7110,    share:0.52  },
+  { name:'Belgium',        flag:'🇧🇪', qty:23967,   rev:6820,    share:0.46  },
+  { name:'Denmark',        flag:'🇩🇰', qty:19019,   rev:5100,    share:0.37  },
+  { name:'Portugal',       flag:'🇵🇹', qty:16180,   rev:4230,    share:0.31  },
+  { name:'Italy',          flag:'🇮🇹', qty:7483,    rev:2140,    share:0.14  },
+  { name:'Austria',        flag:'🇦🇹', qty:4827,    rev:1380,    share:0.09  },
+  { name:'Poland',         flag:'🇵🇱', qty:2466,    rev:780,     share:0.05  },
+  { name:'Greece',         flag:'🇬🇷', qty:1560,    rev:450,     share:0.03  },
+];
+
+const top8 = countries.slice(0,8);
+const COLORS = ['#4f8ef7','#f5a623','#3ecf8e','#c084fc','#f87171','#34d399','#fbbf24','#a78bfa'];
+
+// ── COUNTRY TABLE ──────────────────────────────────────────
+function buildTable(data) {
+  const max = data[0].qty;
+  const tb = document.getElementById('countryTableBody');
+  tb.innerHTML = data.map(c => `
+    <tr>
+      <td><span class="country-flag">${c.flag}</span>${c.name}</td>
+      <td style="font-weight:500;color:var(--text);">${c.qty.toLocaleString()}</td>
+      <td style="min-width:80px;">
+        <span style="font-size:10px;color:var(--muted);">${c.share.toFixed(2)}%</span>
+        <div class="share-bar-bg"><div class="share-bar-fill" style="width:${Math.round((c.qty/max)*100)}%;background:${c.share>50?'#4f8ef7':'#f5a623'};"></div></div>
+      </td>
+    </tr>`).join('');
+}
+buildTable(countries);
+
+// ── BAR CHART ──────────────────────────────────────────────
+const barCtx = document.getElementById('barChart').getContext('2d');
+new Chart(barCtx, {
+  type: 'bar',
+  data: {
+    labels: top8.map(c => c.name.length > 12 ? c.name.slice(0,10)+'…' : c.name),
+    datasets: [
+      { label:'Quantity', data: top8.map(c=>c.qty), backgroundColor:'rgba(79,142,247,0.8)', borderRadius:4, borderWidth:0 },
+      { label:'UnitPrice', data: top8.map(c=>c.rev), backgroundColor:'rgba(245,166,35,0.8)', borderRadius:4, borderWidth:0 }
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:false } },
+    scales:{
+      x:{ ticks:{ color:'#6b7280', font:{size:10} }, grid:{ color:'rgba(255,255,255,0.04)' }, border:{display:false} },
+      y:{ ticks:{ color:'#6b7280', font:{size:10}, callback:v=>v>=1000000?'${(v/1000000).toFixed(1)}M':v>=1000?'${(v/1000).toFixed(0)}K':v }, grid:{ color:'rgba(255,255,255,0.04)' }, border:{display:false} }
+    }
+  }
+});
+
+// ── DONUT CHART ────────────────────────────────────────────
+const donutCtx = document.getElementById('donutChart').getContext('2d');
+new Chart(donutCtx, {
+  type:'doughnut',
+  data:{
+    labels:['Count of CustomerID','Sum of Quantity'],
+    datasets:[{ data:[7.29,92.71], backgroundColor:['#4f8ef7','#1a3a6b'], borderWidth:2, borderColor:'#181c27', hoverOffset:4 }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false, cutout:'72%',
+    plugins:{
+      legend:{ display:false },
+      tooltip:{ callbacks:{ label:v=>` ${v.label}: ${v.raw.toFixed(2)}%` } }
+    }
+  }
+});
+
+// ── HORIZONTAL BAR ─────────────────────────────────────────
+const hbarCtx = document.getElementById('hbarChart').getContext('2d');
+new Chart(hbarCtx, {
+  type:'bar',
+  data:{
+    labels: countries.slice(0,10).map(c=>c.name),
+    datasets:[{
+      data: countries.slice(0,10).map(c=>c.qty),
+      backgroundColor: countries.slice(0,10).map((_,i)=>COLORS[i%COLORS.length]+'bb'),
+      borderRadius:4, borderWidth:0
+    }]
+  },
+  options:{
+    indexAxis:'y',
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:false } },
+    scales:{
+      x:{ ticks:{ color:'#6b7280', font:{size:10}, callback:v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':v }, grid:{ color:'rgba(255,255,255,0.04)' }, border:{display:false} },
+      y:{ ticks:{ color:'#9ca3af', font:{size:10} }, grid:{ display:false }, border:{display:false} }
+    }
+  }
+});
+
+// ── MAP TOOLTIP ────────────────────────────────────────────
+const tooltip = document.getElementById('mapTooltip');
+document.querySelectorAll('.map-country').forEach(el => {
+  el.style.cursor = 'pointer';
+  el.addEventListener('mouseenter', e => {
+    const d = e.target.dataset;
+    tooltip.innerHTML = `<strong style="color:#e8eaf0;">${d.country}</strong><br>
+      <span style="color:#6b7280;">Quantity: </span><span style="color:#4f8ef7;">${d.qty}</span><br>
+      <span style="color:#6b7280;">Revenue: </span><span style="color:#f5a623;">${d.rev}</span><br>
+      <span style="color:#6b7280;">Share: </span><span style="color:#3ecf8e;">${d.share}</span>`;
+    tooltip.style.display = 'block';
+  });
+  el.addEventListener('mousemove', e => {
+    const wrap = document.getElementById('mapWrap').getBoundingClientRect();
+    tooltip.style.left = (e.clientX - wrap.left + 12) + 'px';
+    tooltip.style.top  = (e.clientY - wrap.top  - 10) + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+});
+
+// ── FILTER ─────────────────────────────────────────────────
+function filterData(type, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  let filtered;
+  if(type==='uk') {
+    filtered = countries.filter(c=>c.name==='United Kingdom');
+    document.getElementById('filter-info').textContent = 'Showing United Kingdom · 4,795,440 units';
+    document.getElementById('kpi-uk').textContent = '100%';
+    document.getElementById('kpi-intl').textContent = '0%';
+  } else if(type==='eu') {
+    filtered = countries.filter(c=>c.name!=='United Kingdom');
+    document.getElementById('filter-info').textContent = 'Showing Europe ex-UK · 13 countries · 380,010 units';
+    document.getElementById('kpi-uk').textContent = '0%';
+    document.getElementById('kpi-intl').textContent = '100%';
+  } else {
+    filtered = countries;
+    document.getElementById('filter-info').textContent = 'Showing all 16 countries · 5,176,450 units';
+    document.getElementById('kpi-uk').textContent = '92.71%';
+    document.getElementById('kpi-intl').textContent = '7.29%';
+  }
+  buildTable(filtered);
+}
+</script>
+</body>
+</html>
